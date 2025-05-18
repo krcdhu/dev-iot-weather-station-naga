@@ -1,10 +1,29 @@
+/**************************************************************************/
+/*!
+    @file     iot-weather-station.ino
+    @author   Dagondon, Ng Suy, Nieva
+    @project  Development of Localized IoT Microweather Stations for 
+              Baseline Meteorological Parameters in Naga City
+    
+    This sketch is part of an undergraduate thesis project on the development
+    of a localized Internet of Things (IoT)-based microweather station,
+    capable of real-time environmental monitoring and data logging.
+
+    The system collects data on temperature, humidity, pressure, wind speed,
+    wind direction, and rainfall, and supports data upload via WiFi, GSM,
+    and LoRa connectivity. Sensor data is logged to an SD card and uploaded
+    to an online dashboard for monitoring and analysis.
+
+    v1.0 - First release (April 2025)
+*/
+/**************************************************************************/
 #include <HardwareSerial.h>
 #include "DFRobot_RainfallSensor.h"
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include "ThingSpeak.h"
 #include <Adafruit_SHT4x.h>
-#include <Adafruit_BMP3XX.h>
+#include <Adafruit_MPL3115A2.h>
 #include <DS3232.h>
 #include <mySD.h>
 #include <Wire.h>
@@ -40,7 +59,7 @@
 HardwareSerial air780eSerial(2);  // UART2 for GSM module
 DFRobot_RainfallSensor_I2C rain(&Wire);
 Adafruit_SHT4x sht;
-Adafruit_BMP3XX bmp;
+Adafruit_MPL3115A2 mpl;
 DS3232 rtc;
 ext::File dataFile;
 
@@ -150,15 +169,11 @@ void loop() {
     rtc.read();
     sensors_event_t hum, temp;
     sht.getEvent(&hum, &temp);
-    if (!bmp.performReading()) {
-      Serial.println("Failed BMP reading");
-      delay(1000);
-      return;
-    }
+    
     //readings
     float T = temp.temperature;
     float H = hum.relative_humidity;
-    float P = bmp.pressure/100;
+    float P = mpl.getPressure();
     int tip = rain.getRawData();
     float R = (tip - prev)*0.2794;
     float heatIndex = getHeatIndex(T,H);
@@ -251,16 +266,11 @@ void initSensors() {
   sht.setPrecision(SHT4X_HIGH_PRECISION);
   sht.setHeater(SHT4X_NO_HEATER);
 
-  // Initialize BMP390
-  while (!bmp.begin_I2C()) {
-    Serial.println("Couldn't find BMP390. Retrying...");
+  // Initialize MPL3115A2
+  while (!mpl.begin()) {
+    Serial.println("Couldn't find MPL3115A2. Retrying...");
     delay(1000);
   }
-  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
-  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
-  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
-  bmp.performReading();
 
   // Initialize Rain Gauge
   while (!rain.begin()) {
